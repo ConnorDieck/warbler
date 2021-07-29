@@ -324,14 +324,18 @@ def homepage():
     - anon users: no messages
     - logged in: 100 most recent messages of followed_users
     """
-
+    # pdb.set_trace()
     if g.user:
+        # build list of ids first, then query. Creating messages first from the user and then appending following user's messages changes ids to the user's id
+        following_ids = [f.id for f in g.user.following] + [g.user.id]
+
         messages = (Message
                     .query
+                    .filter(Message.user_id.in_(following_ids))
                     .order_by(Message.timestamp.desc())
                     .limit(100)
                     .all())
-
+       
         return render_template('home.html', messages=messages)
 
     else:
