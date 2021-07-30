@@ -154,6 +154,17 @@ def users_show(user_id):
                 .order_by(Message.timestamp.desc())
                 .limit(100)
                 .all())
+
+    #         # build list of liked warbles to properly generate html
+    # likes = (Likes
+    #          .query
+    #          .filter(Likes.user_id == g.user.id)
+    #          .all())
+
+    # liked_msg_ids = [l.message_id for l in likes]
+
+    # # pdb.set_trace()
+
     return render_template('users/show.html', user=user, messages=messages)
 
 
@@ -295,6 +306,31 @@ def remove_like(msg_id):
     db.session.commit()
 
     return redirect('/')
+
+@app.route('/users/<int:user_id>/likes')
+def show_likes(user_id):
+    """Show specified user's likes"""
+
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+
+    # build list of liked warbles to properly generate html
+    likes = (Likes
+                .query
+                .filter(Likes.user_id == g.user.id)
+                .all())
+
+    liked_msg_ids = [l.message_id for l in likes]
+
+    messages = (Message
+                    .query
+                    .filter(Message.user_id.in_(liked_msg_ids))
+                    .order_by(Message.timestamp.desc())
+                    .limit(100)
+                    .all())
+
+    return render_template('messages/likes.html', messages=messages)
 
 ##############################################################################
 # Messages routes:
