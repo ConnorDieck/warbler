@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 import pdb
 
 from forms import UserAddForm, LoginForm, MessageForm, UserEditForm
-from models import db, connect_db, User, Message
+from models import Likes, db, connect_db, User, Message
 
 CURR_USER_KEY = "curr_user"
 
@@ -265,6 +265,38 @@ def delete_user():
 
 
 ##############################################################################
+# Likes routes:
+@app.route('/users/add_like/<int:msg_id>', methods=["POST"])
+def add_like(msg_id):
+    """Add warble to likes"""
+
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+
+    new_like = Likes(user_id=g.user.id, message_id=msg_id)
+
+    db.session.add(new_like)
+    db.session.commit()
+
+    return redirect('/')
+
+@app.route('/users/remove_like/<int:msg_id>', methods=["POST"])
+def remove_like(msg_id):
+    """Remove warble from likes"""
+
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+
+    like = Likes.query.filter(Likes.message_id == msg_id).first()
+
+    db.session.delete(like)
+    db.session.commit()
+
+    return redirect('/')
+
+##############################################################################
 # Messages routes:
 
 @app.route('/messages/new', methods=["GET", "POST"])
@@ -335,8 +367,18 @@ def homepage():
                     .order_by(Message.timestamp.desc())
                     .limit(100)
                     .all())
+
+        # build list of liked warbles to properly generate html
+        likes = (Likes
+                 .query
+                 .filter(Likes.user_id == g.user.id)
+                 .all())
+
+        liked_msg_ids = [l.message_id for l in likes]
+
+        # pdb.set_trace()
        
-        return render_template('home.html', messages=messages)
+        return render_template('home.html', user=g.user, messages=messages, likes=liked_msg_ids)
 
     else:
         return render_template('home-anon.html')
