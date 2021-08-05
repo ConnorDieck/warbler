@@ -7,6 +7,7 @@
 
 import os
 from unittest import TestCase
+from sqlalchemy.exc import IntegrityError
 
 from models import db, User, Message, Follows
 
@@ -21,6 +22,7 @@ os.environ['DATABASE_URL'] = "postgresql:///warbler-test"
 # Now we can import app
 
 from app import app
+import pdb
 
 # Create our tables (we do this here, so we only create the tables
 # once for all tests --- in each test, we'll delete the data
@@ -30,10 +32,10 @@ db.create_all()
 
 
 class UserModelTestCase(TestCase):
-    """Test views for messages."""
+    """Test User model functionality."""
 
     def setUp(self):
-        """Create test client, add sample data."""
+        """Add sample data."""
 
         db.drop_all()
         db.create_all()
@@ -58,6 +60,11 @@ class UserModelTestCase(TestCase):
         self.uid2 = uid2
 
         self.client = app.test_client()
+
+    def tearDown(self):
+        res = super().tearDown()
+        db.session.rollback()
+        return res
 
     def test_user_model(self):
         """Does basic model work?"""
@@ -90,7 +97,7 @@ class UserModelTestCase(TestCase):
         db.session.commit()
 
         # Method should return: User <User #{self.id}: {self.username}, {self.email}>
-        msg = u.__repr__()
+        msg = self.u1.__repr__()
         self.assertEqual(1, 1)
 
         ### Following tests ###
@@ -113,7 +120,7 @@ class UserModelTestCase(TestCase):
         self.assertTrue(self.u1.is_followed_by(self.u2))
         self.assertFalse(self.u2.is_followed_by(self.u1))
 
-    ### User.create tests ###
+    ### User.signup tests ###
 
     def test_user_signup_valid(self):
         """Does User.signup successfully create a new user given valid credentials?"""
@@ -121,13 +128,56 @@ class UserModelTestCase(TestCase):
         u = User.signup(
             username="testuser",
             email="test@test.com",
-            password="HASHED_PASSWORD"
+            password="HASHED_PASSWORD",
+            image_url=User.image_url.default.arg
         )
 
-        username = User.query.get(u.id).username
+        db.session.commit()
+
+        u.id = 9999
+
+        user = User.query.get(u.id)
+        username = user.username
 
         self.assertEqual(username, "testuser")
 
+    def test_user_signup_invalid(self):
+        """Does User.signup return an error with invalid credentials?"""
 
+        invalid_user = User.signup(None, "test@test.com", "password", None)
+        uid = 9999
+        invalid_user.id = uid
 
+        with self.assertRaises(IntegrityError) as cm:
+            db.session.commit()
 
+        # Question: Are error codes associated with errors in Python3? Why is the above sufficient?
+        
+        # the_exception = cm.exception
+        # pdb.set_trace()
+        # # print(the_exception.args)
+        # self.assertEqual(the_exception.args, 3)
+
+    ### User.authenticate tests ###
+
+    def test_user_authenticate(self):
+        """Does User.authenticate successfully return a user when given a valid name and password?"""
+
+        user = User.authenticate("test1", "password")
+
+        self.assertEqual(user.username, "test1")
+        self.assertIn("$2b$", user.password)
+
+    def test_user_authenticate_invalid_username(self):
+        """Does User.authenticate successfully return False when given an invalid username?"""
+
+        user = User.authenticate("wrong_username", "password")
+
+        self.assertEqual(user, False)
+
+    def test_user_authenticate_invalid_password(self):
+        """Does User.authenticate successfully return False when given an invalid password?"""
+
+        user = User.authenticate("test1", "wrong_password")
+
+        self.assertEqual(user, False)
